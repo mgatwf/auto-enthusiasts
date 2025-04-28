@@ -1,0 +1,467 @@
+; Standard DNS Zone File - example.com
+; These records delegate to Akamai GTM
+$TTL 300 ; Set low TTL (5 minutes) for faster propagation
+$ORIGIN example.com.
+
+; SOA and NS records would be here (omitted for brevity)
+
+; CNAME records pointing to Akamai GTM domains
+; These are the user-facing service endpoints
+www         IN CNAME www.example.com.akadns.net.
+api         IN CNAME api.example.com.akadns.net.
+auth        IN CNAME auth.example.com.akadns.net.
+content     IN CNAME content.example.com.akadns.net.
+db          IN CNAME db.example.com.akadns.net.
+
+; Direct A records for specific datacenter endpoints
+; These will be targets for Akamai GTM
+www-old-dc      IN A     192.0.2.10
+                IN A     192.0.2.11
+www-new-dc      IN A     203.0.113.10
+                IN A     203.0.113.11
+api-old-dc      IN A     192.0.2.20
+                IN A     192.0.2.21
+api-new-dc      IN A     203.0.113.20
+                IN A     203.0.113.21
+auth-old-dc     IN A     192.0.2.40
+auth-new-dc     IN A     203.0.113.40
+content-old-dc  IN A     192.0.2.50
+content-new-dc  IN A     203.0.113.50
+db-old-dc       IN A     192.0.2.30
+db-new-dc       IN A     203.0.113.30
+
+
+# Akamai GTM Configuration - JSON Representation
+# This would be implemented in Akamai Control Center or via API
+
+{
+  "domainName": "example.com.akadns.net",
+  "defaultTimeToLive": 300,
+  "properties": [
+    {
+      "name": "www",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": true,
+          "weight": 90,
+          "servers": ["192.0.2.10", "192.0.2.11"],
+          "handoutCName": "www-old-dc.example.com"
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 10,
+          "servers": ["203.0.113.10", "203.0.113.11"],
+          "handoutCName": "www-new-dc.example.com"
+        }
+      ],
+      "type": "weighted-round-robin",
+      "scoreAggregationType": "worst",
+      "stickinessBonusPercentage": 50,
+      "healthThreshold": 80,
+      "staticTTL": 300
+    },
+    {
+      "name": "api",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": true,
+          "weight": 90,
+          "servers": ["192.0.2.20", "192.0.2.21"],
+          "handoutCName": "api-old-dc.example.com"
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 10,
+          "servers": ["203.0.113.20", "203.0.113.21"],
+          "handoutCName": "api-new-dc.example.com"
+        }
+      ],
+      "type": "weighted-round-robin",
+      "scoreAggregationType": "worst",
+      "stickinessBonusPercentage": 50,
+      "healthThreshold": 80,
+      "staticTTL": 300
+    },
+    {
+      "name": "auth",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": true,
+          "weight": 90,
+          "servers": ["192.0.2.40"],
+          "handoutCName": "auth-old-dc.example.com"
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 10,
+          "servers": ["203.0.113.40"],
+          "handoutCName": "auth-new-dc.example.com"
+        }
+      ],
+      "type": "weighted-round-robin",
+      "scoreAggregationType": "worst",
+      "stickinessBonusPercentage": 75,
+      "healthThreshold": 80,
+      "staticTTL": 300
+    },
+    {
+      "name": "content",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": true,
+          "weight": 90,
+          "servers": ["192.0.2.50"],
+          "handoutCName": "content-old-dc.example.com"
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 10,
+          "servers": ["203.0.113.50"],
+          "handoutCName": "content-new-dc.example.com"
+        }
+      ],
+      "type": "weighted-round-robin",
+      "scoreAggregationType": "worst",
+      "stickinessBonusPercentage": 50,
+      "healthThreshold": 80,
+      "staticTTL": 300
+    },
+    {
+      "name": "db",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": true,
+          "weight": 100,
+          "servers": ["192.0.2.30"],
+          "handoutCName": "db-old-dc.example.com"
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": false,
+          "weight": 0,
+          "servers": ["203.0.113.30"],
+          "handoutCName": "db-new-dc.example.com"
+        }
+      ],
+      "type": "weighted-round-robin",
+      "scoreAggregationType": "worst",
+      "stickinessBonusPercentage": 100,
+      "healthThreshold": 80,
+      "staticTTL": 300
+    }
+  ],
+  "datacenters": [
+    {
+      "datacenterId": "old-datacenter",
+      "nickname": "Original Production DC",
+      "scorePenalty": 0,
+      "city": "Ashburn",
+      "stateOrProvince": "VA",
+      "country": "US",
+      "latitude": 39.0481,
+      "longitude": -77.4728
+    },
+    {
+      "datacenterId": "new-datacenter",
+      "nickname": "New Production DC",
+      "scorePenalty": 0,
+      "city": "Dallas",
+      "stateOrProvince": "TX",
+      "country": "US",
+      "latitude": 32.7767,
+      "longitude": -96.7970
+    }
+  ],
+  "loadImbalancePercentage": 10,
+  "ipv6": true,
+  "resources": [
+    {
+      "resourceName": "www-healthcheck",
+      "hostHeader": "www.example.com",
+      "extractString": "200 OK",
+      "resourceInstances": [
+        {
+          "datacenterId": "old-datacenter",
+          "useDefaultLoadObject": false,
+          "loadObject": "/health",
+          "loadServers": ["192.0.2.10", "192.0.2.11"]
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "useDefaultLoadObject": false,
+          "loadObject": "/health",
+          "loadServers": ["203.0.113.10", "203.0.113.11"]
+        }
+      ]
+    },
+    {
+      "resourceName": "api-healthcheck",
+      "hostHeader": "api.example.com",
+      "extractString": "200 OK",
+      "resourceInstances": [
+        {
+          "datacenterId": "old-datacenter",
+          "useDefaultLoadObject": false,
+          "loadObject": "/api/health",
+          "loadServers": ["192.0.2.20", "192.0.2.21"]
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "useDefaultLoadObject": false,
+          "loadObject": "/api/health",
+          "loadServers": ["203.0.113.20", "203.0.113.21"]
+        }
+      ]
+    }
+  ]
+}
+
+
+# Phase 2: 50/50 Split Configuration Update (JSON)
+# This would update only the traffic distribution weights
+
+{
+  "domainName": "example.com.akadns.net",
+  "properties": [
+    {
+      "name": "www",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "weight": 50
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "weight": 50
+        }
+      ]
+    },
+    {
+      "name": "api",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "weight": 50
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "weight": 50
+        }
+      ]
+    },
+    {
+      "name": "auth",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "weight": 50
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "weight": 50
+        }
+      ]
+    },
+    {
+      "name": "content",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "weight": 50
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "weight": 50
+        }
+      ]
+    }
+  ]
+}
+
+
+# Phase 3: Complete Migration Configuration Update (JSON)
+# This would update all services to use the new datacenter exclusively
+
+{
+  "domainName": "example.com.akadns.net",
+  "properties": [
+    {
+      "name": "www",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": false,
+          "weight": 0
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "name": "api",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": false,
+          "weight": 0
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "name": "auth",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": false,
+          "weight": 0
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "name": "content",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": false,
+          "weight": 0
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "name": "db",
+      "trafficTargets": [
+        {
+          "datacenterId": "old-datacenter",
+          "enabled": false,
+          "weight": 0
+        },
+        {
+          "datacenterId": "new-datacenter",
+          "enabled": true,
+          "weight": 100
+        }
+      ]
+    }
+  ]
+}
+
+
+# Akamai GTM Property Configuration Script (Migration Phases)
+# This would be implemented using the Akamai API
+
+```javascript
+// Sample script to update GTM traffic weights during migration
+// Requires Akamai EdgeGrid authentication setup
+
+const EdgeGrid = require('edgegrid');
+const eg = new EdgeGrid({
+  path: '~/.edgerc',
+  section: 'gtm'
+});
+
+// Phase 1: Initial setup - 90/10 split (already configured)
+
+// Phase 2: Update to 50/50 split
+const updateTo5050 = async () => {
+  const services = ['www', 'api', 'auth', 'content'];
+  const domain = 'example.com.akadns.net';
+  
+  for (const service of services) {
+    // First get the current property configuration
+    const property = await getProperty(domain, service);
+    
+    // Update the traffic target weights
+    property.trafficTargets.forEach(target => {
+      if (target.datacenterId === 'old-datacenter') {
+        target.weight = 50;
+      } else if (target.datacenterId === 'new-datacenter') {
+        target.weight = 50;
+      }
+    });
+    
+    // Update the property
+    await updateProperty(domain, service, property);
+    console.log(`Updated ${service} to 50/50 split`);
+  }
+  
+  console.log('Phase 2 migration complete');
+};
+
+// Phase 3: Complete migration - 0/100 split
+const completeMigration = async () => {
+  const services = ['www', 'api', 'auth', 'content', 'db'];
+  const domain = 'example.com.akadns.net';
+  
+  for (const service of services) {
+    // First get the current property configuration
+    const property = await getProperty(domain, service);
+    
+    // Update the traffic target weights and enabled status
+    property.trafficTargets.forEach(target => {
+      if (target.datacenterId === 'old-datacenter') {
+        target.weight = 0;
+        target.enabled = false;
+      } else if (target.datacenterId === 'new-datacenter') {
+        target.weight = 100;
+        target.enabled = true;
+      }
+    });
+    
+    // Update the property
+    await updateProperty(domain, service, property);
+    console.log(`Migrated ${service} fully to new datacenter`);
+  }
+  
+  console.log('Phase 3 migration complete');
+};
+
+// Helper functions for the API calls
+const getProperty = (domain, propertyName) => {
+  return new Promise((resolve, reject) => {
+    eg.get(`/config-gtm/v1/domains/${domain}/properties/${propertyName}`, (error, response, body) => {
+      if (error) return reject(error);
+      if (response.statusCode !== 200) return reject(new Error(`Status ${response.statusCode}: ${body}`));
+      resolve(JSON.parse(body));
+    });
+  });
+};
+
+const updateProperty = (domain, propertyName, propertyData) => {
+  return new Promise((resolve, reject) => {
+    eg.put(`/config-gtm/v1/domains/${domain}/properties/${propertyName}`, propertyData, (error, response, body) => {
+      if (error) return reject(error);
+      if (response.statusCode !== 200) return reject(new Error(`Status ${response.statusCode}: ${body}`));
+      resolve(JSON.parse(body));
+    });
+  });
+};
+
+// Execute the migration phases with appropriate monitoring between steps
+```
