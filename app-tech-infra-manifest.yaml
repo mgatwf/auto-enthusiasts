@@ -1,0 +1,49 @@
+application:
+  name: app1
+  components:
+    - name: comp1
+      type: service
+      technology: container
+      platform: OpenShift
+      description: "Microservice running as a container in OpenShift cluster"
+      runtime: Java 17
+      deployment:
+        method: CI/CD Pipeline
+        resources:
+          cpu: "500m"
+          memory: "512Mi"
+        replicas: 2
+
+    - name: comp2
+      type: database
+      technology: MongoDB
+      platform: VirtualMachine
+      description: "MongoDB database hosted on a virtual machine"
+      os: Ubuntu 22.04
+      deployment:
+        method: Manual
+        resources:
+          cpu: "2"
+          memory: "4Gi"
+        storage:
+          type: SSD
+          size: 100Gi
+
+infrastructure:
+  clusters:
+    - name: openshift-cluster
+      type: container-platform
+      provider: RedHat OpenShift
+      region: us-east
+      nodes: 3
+      orchestration: Kubernetes
+
+  virtual_machines:
+    - name: vm-mongodb
+      os: Ubuntu 22.04
+      region: us-east
+      vcpus: 2
+      memory: 4Gi
+      storage: 100Gi
+      hosted_components:
+        - comp2
