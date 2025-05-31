@@ -13,6 +13,10 @@ application:
           cpu: "500m"
           memory: "512Mi"
         replicas: 2
+      integrations:
+        - kafka-topic: topic-app1-events
+        - apigee-proxy: proxy-app1-api
+        - monitoring: Splunk-O11y
 
     - name: comp2
       type: database
@@ -28,6 +32,58 @@ application:
         storage:
           type: SSD
           size: 100Gi
+        backup:
+          enabled: true
+          schedule: "daily"
+
+    - name: kafka
+      type: message-broker
+      technology: Apache Kafka
+      platform: OpenShift
+      topics:
+        - topic-app1-events
+        - topic-app1-logs
+      replicas: 3
+
+    - name: apigee
+      type: api-gateway
+      technology: Apigee
+      proxies:
+        - name: proxy-app1-api
+          target: comp1
+          auth: OAuth2
+
+    - name: autosys
+      type: job-scheduler
+      technology: AutoSys
+      jobs:
+        - name: job-daily-sync
+          schedule: "0 2 * * *"
+          target: comp1
+        - name: job-report-generator
+          schedule: "0 5 * * 1"
+          target: comp2
+
+    - name: nfs-pv
+      type: persistent-volume
+      technology: NFS
+      platform: SharedStorage
+      mount_path: "/mnt/data"
+      capacity: 50Gi
+      access_mode: ReadWriteMany
+      used_by:
+        - comp1
+
+    - name: splunk-obs
+      type: monitoring
+      technology: Splunk O11y
+      targets:
+        - comp1
+        - kafka
+      features:
+        - metrics
+        - logs
+        - traces
 
 infrastructure:
   clusters:
@@ -37,6 +93,9 @@ infrastructure:
       region: us-east
       nodes: 3
       orchestration: Kubernetes
+      services:
+        - ingress: AVI LTM
+        - dns-routing: AVI GTM
 
   virtual_machines:
     - name: vm-mongodb
@@ -47,3 +106,25 @@ infrastructure:
       storage: 100Gi
       hosted_components:
         - comp2
+
+  storage:
+    - name: nfs-server
+      type: NFS
+      capacity: 1Ti
+      mount_points:
+        - /mnt/data
+
+networking:
+  ingress:
+    type: AVI LTM
+    endpoints:
+      - service: comp1
+        path: /api
+        port: 443
+        tls: true
+
+  gtm:
+    type: AVI GTM
+    domains:
+      - app1.example.com
+      - api.app1.example.com
