@@ -1,0 +1,120 @@
+infrastructure:
+  environment: production
+  regions:
+    - name: dc-east
+      availability_zones: [az1, az2]
+    - name: dc-west
+      availability_zones: [az1, az2]
+
+networking:
+  internet_gateway: enabled
+  firewalls:
+    - name: perimeter-fw
+      type: hardware
+      vendor: PaloAlto
+      rules:
+        - allow: [HTTPS, HTTP]
+          from: 0.0.0.0/0
+          to: dmz
+        - deny: all
+  dmz:
+    subnets:
+      - name: public-web-subnet
+        cidr: 10.0.1.0/24
+    services:
+      - name: reverse-proxy
+        type: container
+        replicas: 2
+        platform: OpenShift
+        image: nginx:latest
+        tls_termination: enabled
+      - name: waf
+        type: appliance
+        vendor: F5
+        mode: inline
+  private:
+    subnets:
+      - name: app-subnet
+        cidr: 10.0.2.0/24
+      - name: db-subnet
+        cidr: 10.0.3.0/24
+    services:
+      - name: app-service
+        type: microservice
+        platform: OpenShift
+        replicas: 4
+        container_image: my-app:latest
+        ports: [8080]
+        dependencies:
+          - mongodb
+          - kafka
+      - name: mongodb
+        type: database
+        vendor: MongoDB
+        cluster_size: 3
+        storage: 500Gi
+        storage_type: nfs
+        high_availability: enabled
+      - name: kafka
+        type: messaging
+        cluster_size: 3
+        storage: 1Ti
+        storage_type: nfs
+        high_availability: enabled
+
+security:
+  tls: 
+    version: TLS1.3
+    mTLS_internal: true
+  identity_access_management:
+    oauth2_oidc_provider: Keycloak
+    mfa: enabled
+  secrets_management:
+    tool: HashiCorp Vault
+  ddos_protection:
+    tool: Cloudflare
+  waf:
+    tool: F5 ASM
+
+platform:
+  container_platform:
+    name: OpenShift
+    version: 4.15
+    features: [autoscaling, self-healing, service-mesh]
+  service_mesh:
+    tool: Istio
+    mtls_enabled: true
+  ci_cd:
+    toolchain: 
+      - GitLab CI
+      - ArgoCD
+  infrastructure_as_code:
+    tools: [Terraform, Ansible]
+
+observability:
+  logging:
+    tool: Splunk
+    retention_days: 30
+  monitoring:
+    tool: Prometheus
+  alerting:
+    tool: Grafana AlertManager
+  siem:
+    tool: IBM QRadar
+
+resilience:
+  backup:
+    frequency: daily
+    retention: 30d
+    storage: offsite-dr-vault
+  disaster_recovery:
+    dr_site: dc-west
+    mode: active-passive
+    rto: 4h
+    rpo: 1h
+
+compliance:
+  standards: [PCI-DSS, GDPR, SOC2]
+  data_encryption:
+    in_transit: true
+    at_rest: true
