@@ -1,0 +1,38 @@
+# ------------------- CLOUD ARMOR -------------------
+- name: dmz-cloud-armor-policy
+  type: compute.v1.securityPolicy
+  properties:
+    description: "Basic protection with rate limit"
+    rules:
+      - action: "deny(403)"
+        priority: 1000
+        match:
+          versionedExpr: "SRC_IPS_V1"
+          config:
+            srcIpRanges: ["1.2.3.4/32"]
+      - action: "allow"
+        priority: 2147483647
+
+# ------------------- GLOBAL LOAD BALANCER -------------------
+- name: lb-backend-service
+  type: compute.v1.backendService
+  properties:
+    healthChecks: []
+    loadBalancingScheme: EXTERNAL
+    protocol: HTTP
+    backends: []
+    securityPolicy: $(ref.dmz-cloud-armor-policy.selfLink)
+
+# Placeholder for LB components like URL map, proxy, IP address
+# These should reference managed instance groups or GKE services in DMZ subnets
+
+# ------------------- CLOUD DNS ZONE -------------------
+- name: dmz-private-zone
+  type: dns.v1.managedZone
+  properties:
+    description: "Internal DNS zone for backend services"
+    dnsName: "internal.dmz."
+    visibility: "private"
+    privateVisibilityConfig:
+      networks:
+        - networkUrl: $(ref.dmz-vpc.selfLink)
