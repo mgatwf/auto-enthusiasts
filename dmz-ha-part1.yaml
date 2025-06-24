@@ -1,0 +1,163 @@
+resources:
+# ------------------- VPC NETWORK -------------------
+- name: dmz-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+    routingConfig:
+      routingMode: GLOBAL
+
+# ------------------- SUBNETS -------------------
+# DMZ and Private Subnets - Central
+- name: dmz-subnet-central
+  type: compute.v1.subnetwork
+  properties:
+    region: us-central1
+    network: $(ref.dmz-vpc.selfLink)
+    ipCidrRange: 10.0.1.0/24
+    privateIpGoogleAccess: true
+
+- name: private-subnet-central
+  type: compute.v1.subnetwork
+  properties:
+    region: us-central1
+    network: $(ref.dmz-vpc.selfLink)
+    ipCidrRange: 10.0.2.0/24
+    privateIpGoogleAccess: true
+
+# DMZ and Private Subnets - East
+- name: dmz-subnet-east
+  type: compute.v1.subnetwork
+  properties:
+    region: us-east1
+    network: $(ref.dmz-vpc.selfLink)
+    ipCidrRange: 10.0.3.0/24
+    privateIpGoogleAccess: true
+
+- name: private-subnet-east
+  type: compute.v1.subnetwork
+  properties:
+    region: us-east1
+    network: $(ref.dmz-vpc.selfLink)
+    ipCidrRange: 10.0.4.0/24
+    privateIpGoogleAccess: true
+
+# ------------------- FIREWALL -------------------
+- name: allow-http-to-dmz
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.dmz-vpc.selfLink)
+    direction: INGRESS
+    priority: 1000
+    allowed:
+      - IPProtocol: tcp
+        ports: ["80", "443"]
+    sourceRanges: ["0.0.0.0/0"]
+    targetTags: ["dmz"]
+
+- name: allow-private-to-dmz
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.dmz-vpc.selfLink)
+    direction: INGRESS
+    priority: 1000
+    allowed:
+      - IPProtocol: all
+    sourceRanges: ["10.0.2.0/24", "10.0.4.0/24"]
+    targetTags: ["dmz"]
+
+- name: allow-iap-ssh
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.dmz-vpc.selfLink)
+    direction: INGRESS
+    priority: 1000
+    allowed:
+      - IPProtocol: tcp
+        ports: ["22"]
+    sourceRanges: ["35.235.240.0/20"]
+    targetTags: ["bastion"]
+
+# ------------------- CLOUD NAT -------------------
+- name: nat-router-central
+  type: compute.v1.router
+  properties:
+    region: us-central1
+    network: $(ref.dmz-vpc.selfLink)
+
+- name: nat-config-central
+  type: compute.v1.routerNat
+  properties:
+    router: $(ref.nat-router-central.name)
+    region: us-central1
+    natIpAllocateOption: AUTO_ONLY
+    sourceSubnetworkIpRangesToNat: LIST_OF_SUBNETWORKS
+    subnetworks:
+      - name: $(ref.private-subnet-central.selfLink)
+        sourceIpRangesToNat: ["ALL_IP_RANGES"]
+
+- name: nat-router-east
+  type: compute.v1.router
+  properties:
+    region: us-east1
+    network: $(ref.dmz-vpc.selfLink)
+
+- name: nat-config-east
+  type: compute.v1.routerNat
+  properties:
+    router: $(ref.nat-router-east.name)
+    region: us-east1
+    natIpAllocateOption: AUTO_ONLY
+    sourceSubnetworkIpRangesToNat: LIST_OF_SUBNETWORKS
+    subnetworks:
+      - name: $(ref.private-subnet-east.selfLink)
+        sourceIpRangesToNat: ["ALL_IP_RANGES"]
+
+# ------------------- BASTION HOSTS -------------------
+- name: bastion-central
+  type: compute.v1.instance
+  properties:
+    zone: us-central1-a
+    machineType: zones/us-central1-a/machineTypes/e2-micro
+    tags: ["bastion"]
+    metadata:
+      items:
+        - key: enable-oslogin
+          value: "TRUE"
+    disks:
+      - deviceName: boot
+        type: PERSISTENT
+        boot: true
+        autoDelete: true
+        initializeParams:
+          sourceImage: projects/debian-cloud/global/images/family/debian-11
+    networkInterfaces:
+      - network: $(ref.dmz-vpc.selfLink)
+        subnetwork: $(ref.dmz-subnet-central.selfLink)
+        accessConfigs:
+          - name: External NAT
+            type: ONE_TO_ONE_NAT
+
+- name: bastion-east
+  type: compute.v1.instance
+  properties:
+    zone: us-east1-b
+    machineType: zones/us-east1-b/machineTypes/e2-micro
+    tags: ["bastion"]
+    metadata:
+      items:
+        - key: enable-oslogin
+          value: "TRUE"
+    disks:
+      - deviceName: boot
+        type: PERSISTENT
+        boot: true
+        autoDelete: true
+        initializeParams:
+          sourceImage: projects/debian-cloud/global/images/family/debian-11
+    networkInterfaces:
+      - network: $(ref.dmz-vpc.selfLink)
+        subnetwork: $(ref.dmz-subnet-east.selfLink)
+        accessConfigs:
+          - name: External NAT
+            type: ONE_TO_ONE_NAT
