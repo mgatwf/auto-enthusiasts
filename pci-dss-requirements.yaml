@@ -1,0 +1,111 @@
+pci_dss_compliant_infrastructure:
+  version: v1
+  description: PCI-DSS compliant infrastructure stack
+  environment: production
+
+  network:
+    vpc:
+      name: pci-vpc
+      cidr_block: 10.0.0.0/16
+      subnets:
+        - name: public-subnet-az1
+          cidr: 10.0.1.0/24
+          availability_zone: us-west1-a
+        - name: private-subnet-az1
+          cidr: 10.0.2.0/24
+          availability_zone: us-west1-a
+      firewall_rules:
+        - name: allow-https-inbound
+          ports: [443]
+          protocol: tcp
+          source: 0.0.0.0/0
+        - name: deny-all-other-inbound
+          action: deny
+    segmentation:
+      pci_zone_tag: pci
+      non_pci_zone_tag: non-pci
+      flow_rules:
+        - from: non-pci
+          to: pci
+          allow: false
+
+  identity_access:
+    iam_roles:
+      - name: pci-app-server-role
+        permissions:
+          - read-only access to secrets
+          - publish to audit logs
+        mfa_required: true
+    users:
+      enforce_password_policy:
+        min_length: 14
+        require_symbols: true
+        require_numbers: true
+        require_uppercase: true
+        password_expiry_days: 90
+
+  compute:
+    instances:
+      - name: app-server-1
+        type: hardened-linux
+        patching:
+          auto_patch: true
+        logging:
+          enable_audit_logs: true
+          destination: centralized-logging-bucket
+        monitoring:
+          enable_fim: true   # File Integrity Monitoring
+        encryption:
+          boot_volume: encrypted
+          data_volumes: encrypted
+
+  storage:
+    buckets:
+      - name: encrypted-pci-logs
+        encryption: kms-managed
+        retention_policy_days: 365
+        access_logs_enabled: true
+        access_control: private
+
+  database:
+    instance:
+      engine: postgresql
+      version: 15
+      encrypted: true
+      storage_encrypted: true
+      backups:
+        enabled: true
+        encrypted: true
+        retention_days: 30
+      users:
+        - username: pciadmin
+          password_policy:
+            mfa_enabled: true
+            password_rotation_days: 90
+
+  security_controls:
+    waf:
+      enabled: true
+      rules:
+        - block_sql_injection
+        - block_xss
+        - rate_limiting
+    antivirus:
+      enabled: true
+      scan_schedule: daily
+    vulnerability_scans:
+      internal_scan_frequency: weekly
+      external_scan_frequency: quarterly
+
+  compliance:
+    logging:
+      enable_flow_logs: true
+      log_retention_days: 365
+    config_monitoring:
+      enforce_compliance_rules:
+        - no_public_ip_on_pci
+        - encryption_required_on_all_disks
+        - mfa_enabled_on_all_users
+    audits:
+      enable_auto_audit_reports: true
+      third_party_audit_required: true
