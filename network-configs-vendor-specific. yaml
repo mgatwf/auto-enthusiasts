@@ -1,0 +1,148 @@
+infrastructure:
+  dns: # Akamai Edge DNS
+    zones:
+      - name: example.com
+        records:
+          - type: A
+            name: www
+            value: 203.0.113.10
+            ttl: 300
+          - type: CNAME
+            name: api
+            value: app.example.com
+            ttl: 300
+        dnssec: enabled
+        akamai_settings:
+          contract_id: ctr_xxxxx
+          group_id: grp_xxxxx
+          notify_emails:
+            - netops@example.com
+
+  waf: # Akamai App & API Protector
+    deployment: edge
+    protections:
+      sql_injection: block
+      cross_site_scripting: block
+      command_injection: alert
+      file_inclusion: block
+    rate_limiting:
+      enabled: true
+      requests_per_second: 100
+    bot_management: enabled
+    api_protection:
+      enforce_schema: true
+      allowed_methods: [GET, POST, PUT, DELETE]
+    tls_settings:
+      minimum_version: TLS1.2
+      cipher_suite: ak-strong-forward-secrecy
+      cert_id: cert_xxxxx
+    logging:
+      export: splunk
+      retention_days: 30
+
+  gslb: # Avi GSLB
+    gslb_domains:
+      - name: example.com
+        algorithm: geo
+        persistence: source-ip
+        health_monitor:
+          type: https
+          send: "GET /health"
+          receive: "200"
+          interval: 30
+        gslb_services:
+          - fqdn: www.example.com
+            pools:
+              - name: us-pool
+                priority: 1
+                members:
+                  - ip: 203.0.113.10
+                    ratio: 1
+                  - ip: 203.0.113.11
+                    ratio: 1
+              - name: eu-pool
+                priority: 2
+                members:
+                  - ip: 198.51.100.20
+                    ratio: 1
+                  - ip: 198.51.100.21
+                    ratio: 1
+
+  ltm: # Avi Local Load Balancing
+    virtual_services:
+      - name: vs_https
+        ip: 203.0.113.10
+        port: 443
+        application_profile: https
+        ssl_profile: avi-ssl-profile
+        pool: web_pool
+    pools:
+      - name: web_pool
+        algorithm: least_conn
+        health_monitor: https-monitor
+        servers:
+          - ip: 10.0.1.10
+            port: 443
+          - ip: 10.0.1.11
+            port: 443
+    persistence:
+      type: cookie
+      timeout: 3600
+    policies:
+      - name: redirect_http_to_https
+        match: port=80
+        action: redirect
+        redirect_url: "https://{host}{uri}"
+
+  firewall: # Palo Alto NGFW
+    zones:
+      - name: trust
+      - name: dmz
+      - name: untrust
+    security_rules:
+      - name: allow_https_inbound
+        from_zone: untrust
+        to_zone: dmz
+        source: any
+        destination: 203.0.113.10
+        application: ssl
+        service: application-default
+        action: allow
+      - name: allow_dns_outbound
+        from_zone: dmz
+        to_zone: untrust
+        source: dmz
+        destination: any
+        application: dns
+        service: application-default
+        action: allow
+      - name: deny_all
+        from_zone: any
+        to_zone: any
+        source: any
+        destination: any
+        action: deny
+    nat_rules:
+      - name: web_nat
+        type: static
+        from_zone: untrust
+        to_zone: dmz
+        source: 10.0.1.10
+        translated: 203.0.113.10
+      - name: outbound_nat
+        type: dynamic-ip-and-port
+        from_zone: trust
+        to_zone: untrust
+        source: 10.0.0.0/16
+        translated: public-nat-pool
+    vpn:
+      ipsec_tunnels:
+        - name: corp-vpn
+          peer_ip: 198.51.100.50
+          authentication: pre-shared-key
+          encryption: aes256
+          hash: sha256
+          dh_group: 14
+    logging:
+      forward_to: panorama
+      severity: info
