@@ -1,0 +1,62 @@
+databases:
+  oracle_exadata:
+    memory:
+      sga_target: 16G
+      pga_aggregate_target: 8G
+    rac:
+      nodes: 4
+      scan_listeners: ["scan1.db.example.com", "scan2.db.example.com"]
+    storage:
+      asm_diskgroups: ["DATA", "RECO"]
+    security:
+      tde: enabled
+      audit: standard
+    ha:
+      data_guard: async
+      backup: rman_daily
+
+  mongodb:
+    cluster:
+      repl_set: rs0
+      sharding: enabled
+      mongos_nodes: 3
+    storage:
+      engine: wiredTiger
+      cache_size_gb: 8
+    security:
+      authorization: enabled
+      tls: required
+    replication:
+      write_concern: majority
+      read_concern: majority
+
+  sql_server:
+    instance:
+      max_memory_mb: 65536
+      maxdop: 8
+      tempdb_files: 8
+    storage:
+      data_file_autogrowth: 256MB
+      log_file_autogrowth: 512MB
+    ha:
+      availability_groups: enabled
+    security:
+      authentication: mixed
+      tde: enabled
+
+  yugabytedb:
+    cluster:
+      replication_factor: 3
+      placement:
+        - region: us-west
+          zones: [a, b, c]
+    networking:
+      rpc_port: 7100
+      sql_port: 5433
+    storage:
+      data_dir: /var/lib/yugabyte/data
+    security:
+      tls: enabled
+      rbac: enabled
+    monitoring:
+      prometheus_exporter: enabled
