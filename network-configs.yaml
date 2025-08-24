@@ -1,0 +1,137 @@
+infrastructure:
+  dns:
+    zones:
+      - name: example.com
+        records:
+          - type: A
+            name: www
+            value: 203.0.113.10
+            ttl: 300
+          - type: CNAME
+            name: api
+            value: app.example.com
+            ttl: 300
+          - type: MX
+            name: "@"
+            value: mail.example.com
+            priority: 10
+          - type: TXT
+            name: "@"
+            value: "v=spf1 include:_spf.google.com ~all"
+        dnssec: enabled
+        forwarding: 
+          - 8.8.8.8
+          - 1.1.1.1
+
+  waf:
+    deployment_mode: reverse-proxy
+    ssl_termination: true
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+    security_policies:
+      signatures: enabled
+      sql_injection: block
+      xss: block
+      file_upload_limits: 10MB
+    rate_limiting:
+      enabled: true
+      requests_per_minute: 1000
+    bot_protection: enabled
+    geo_blocking:
+      blocked_countries:
+        - CN
+        - RU
+    logging:
+      target: syslog
+      retention_days: 30
+
+  gslb:
+    domains:
+      - name: example.com
+        load_balancing_method: geo
+        persistence: source-ip
+        health_checks:
+          protocol: https
+          interval: 30
+          timeout: 5
+        pools:
+          - name: us-pool
+            members:
+              - ip: 203.0.113.10
+                weight: 1
+              - ip: 203.0.113.11
+                weight: 1
+          - name: eu-pool
+            members:
+              - ip: 198.51.100.20
+                weight: 1
+              - ip: 198.51.100.21
+                weight: 1
+        failover_policy: priority
+        priority_order: [us-pool, eu-pool]
+
+  ltm:
+    virtual_servers:
+      - name: vs_https
+        ip: 203.0.113.10
+        port: 443
+        ssl_offload: true
+        pool: web_pool
+    pools:
+      - name: web_pool
+        load_balancing_method: least-connections
+        monitors:
+          - type: https
+            send: "GET /health"
+            receive: "200 OK"
+        members:
+          - ip: 10.0.1.10
+            port: 443
+          - ip: 10.0.1.11
+            port: 443
+    persistence:
+      type: cookie
+      timeout: 3600
+    irules:
+      - name: redirect_http_to_https
+        event: HTTP_REQUEST
+        action: "if { [TCP::local_port] == 80 } { HTTP::redirect https://[HTTP::host][HTTP::uri] }"
+
+  firewall:
+    zones:
+      - name: inside
+      - name: dmz
+      - name: outside
+    rules:
+      - name: allow_https_inbound
+        action: allow
+        source: any
+        destination: 203.0.113.10
+        protocol: tcp
+        port: 443
+      - name: allow_dns_outbound
+        action: allow
+        source: dmz
+        destination: any
+        protocol: udp
+        port: 53
+      - name: block_all_else
+        action: deny
+    nat:
+      - type: static
+        source: 10.0.1.10
+        mapped_ip: 203.0.113.10
+      - type: dynamic
+        source: 10.0.0.0/16
+        mapped_pool: public-nat-pool
+    vpn:
+      remote_access:
+        enabled: true
+        authentication: ldap
+        encryption: aes256
+    logging:
+      enabled: true
+      target: siem
+      level: info
