@@ -1,0 +1,55 @@
+redis:
+  general:
+    port: 6379
+    bind: 0.0.0.0
+    daemonize: yes
+    loglevel: notice
+    maxclients: 10000
+
+  memory:
+    maxmemory: 4gb
+    eviction_policy: allkeys-lru
+
+  persistence:
+    rdb:
+      save_points:
+        - { seconds: 900, changes: 1 }
+        - { seconds: 300, changes: 10 }
+      compression: yes
+    aof:
+      enabled: true
+      fsync: everysec
+      rewrite_min_size: 64mb
+
+  replication:
+    enabled: true
+    replicaof: redis-master.example.com:6379
+    read_only: true
+    min_replicas_to_write: 2
+
+  cluster:
+    enabled: true
+    config_file: nodes.conf
+    node_timeout_ms: 5000
+    replication_factor: 3
+
+  security:
+    requirepass: "SuperSecretPass"
+    acl:
+      - user: default
+        enabled: true
+        commands: +@all
+        keys: allkeys
+        password: "SuperSecretPass"
+
+  performance:
+    io_threads: 4
+    active_defrag: yes
+    tcp_keepalive: 60
+
+  monitoring:
+    slowlog:
+      threshold_microseconds: 10000
+      max_entries: 128
+    latency_monitor_threshold: 100
+    prometheus_exporter: enabled
