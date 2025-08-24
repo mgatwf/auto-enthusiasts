@@ -1,0 +1,30 @@
+file_storage:
+  type: nfs
+  capacity_gb: 10240
+  redundancy: raid10
+  snapshot_policy:
+    schedule: daily
+    retention_days: 30
+  access:
+    export_path: /mnt/projects
+    protocol: nfs4
+    allowed_clients:
+      - 10.0.0.0/24
+    authentication: ldap
+    acl:
+      - user: alice
+        permissions: rw
+      - group: devs
+        permissions: rwx
+  encryption:
+    at_rest: enabled
+    in_transit: enabled
+    key_provider: kms
+  performance:
+    iops_limit: 5000
+    throughput_mbps: 250
+  monitoring:
+    logging: enabled
+    alerts:
+      - type: capacity
+        threshold: 80%
